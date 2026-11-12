@@ -31,9 +31,11 @@ router.post("/register", async (req, res, next) => {
   }
 
   const { username, email, password } = parsed.data;
-  const connection = await pool.getConnection();
+  let connection;
+  let transactionStarted = false;
 
   try {
+    connection = await pool.getConnection();
     const [existing] = await connection.execute(
       "SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1",
       [username, email]
@@ -49,6 +51,7 @@ router.post("/register", async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, 12);
 
     await connection.beginTransaction();
+    transactionStarted = true;
 
     const [userResult] = await connection.execute(
       `INSERT INTO users (username, email, password_hash, role, status)
@@ -72,12 +75,13 @@ router.post("/register", async (req, res, next) => {
     );
 
     await connection.commit();
+    transactionStarted = false;
 
     const user = {
       id: userId,
       username,
       email,
-      role: "user"
+      role: "player"
     };
 
     return res.status(201).json({
@@ -87,10 +91,12 @@ router.post("/register", async (req, res, next) => {
       user
     });
   } catch (error) {
-    await connection.rollback();
+    if (connection && transactionStarted) {
+      await connection.rollback();
+    }
     next(error);
   } finally {
-    connection.release();
+    connection?.release();
   }
 });
 
