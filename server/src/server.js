@@ -7,6 +7,7 @@ import pool from "./config/database.js";
 import authRoutes from "./routes/auth.routes.js";
 import playerRoutes from "./routes/player.routes.js";
 import catalogRoutes from "./routes/catalog.routes.js";
+import packRoutes from "./routes/pack.routes.js";
 
 const app = express();
 
@@ -45,6 +46,9 @@ app.use("/api/player", playerRoutes);
 
 // Public player and pack catalog
 app.use("/api/catalog", catalogRoutes);
+
+// Authenticated pack inventory, purchase and opening
+app.use("/api/packs", packRoutes);
 
 // Không tìm thấy API
 app.use((req, res) => {
