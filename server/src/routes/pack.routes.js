@@ -53,9 +53,11 @@ router.post("/:packId/purchase", async (req, res, next) => {
 
   const quantity = parsed.data.quantity;
   let connection;
+  let transactionStarted = false;
   try {
     connection = await pool.getConnection();
     await connection.beginTransaction();
+    transactionStarted = true;
 
     const [packs] = await connection.execute(
       "SELECT id, name, price FROM card_packs WHERE id = ? AND is_active = TRUE FOR UPDATE",
@@ -63,6 +65,7 @@ router.post("/:packId/purchase", async (req, res, next) => {
     );
     if (!packs.length) {
       await connection.rollback();
+      transactionStarted = false;
       return res.status(404).json({ success: false, message: "Pack không tồn tại hoặc đã ngừng bán." });
     }
 
@@ -72,6 +75,7 @@ router.post("/:packId/purchase", async (req, res, next) => {
     );
     if (!wallets.length) {
       await connection.rollback();
+      transactionStarted = false;
       return res.status(404).json({ success: false, message: "Không tìm thấy ví người chơi." });
     }
 
@@ -79,6 +83,7 @@ router.post("/:packId/purchase", async (req, res, next) => {
     const currentCash = Number(wallets[0].cash);
     if (!Number.isSafeInteger(totalCost) || currentCash < totalCost) {
       await connection.rollback();
+      transactionStarted = false;
       return res.status(400).json({ success: false, message: "Không đủ tiền để mua pack." });
     }
 
@@ -101,6 +106,7 @@ router.post("/:packId/purchase", async (req, res, next) => {
     );
 
     await connection.commit();
+    transactionStarted = false;
     res.json({
       success: true,
       message: "Mua pack thành công.",
@@ -108,7 +114,7 @@ router.post("/:packId/purchase", async (req, res, next) => {
       wallet: { cash: balanceAfter }
     });
   } catch (error) {
-    if (connection) await connection.rollback();
+    if (connection && transactionStarted) await connection.rollback();
     next(error);
   } finally {
     connection?.release();
@@ -123,9 +129,11 @@ router.post("/:packId/open", async (req, res, next) => {
   }
 
   let connection;
+  let transactionStarted = false;
   try {
     connection = await pool.getConnection();
     await connection.beginTransaction();
+    transactionStarted = true;
 
     const [packs] = await connection.execute(
       "SELECT id, name, cards_per_pack FROM card_packs WHERE id = ? AND is_active = TRUE FOR UPDATE",
@@ -133,6 +141,7 @@ router.post("/:packId/open", async (req, res, next) => {
     );
     if (!packs.length) {
       await connection.rollback();
+      transactionStarted = false;
       return res.status(404).json({ success: false, message: "Pack không tồn tại hoặc đã ngừng bán." });
     }
 
@@ -142,6 +151,7 @@ router.post("/:packId/open", async (req, res, next) => {
     );
     if (!inventory.length || Number(inventory[0].quantity) < 1) {
       await connection.rollback();
+      transactionStarted = false;
       return res.status(400).json({ success: false, message: "Mày không có pack này trong kho." });
     }
 
@@ -160,6 +170,7 @@ router.post("/:packId/open", async (req, res, next) => {
 
     if (!editions.length || !rates.length) {
       await connection.rollback();
+      transactionStarted = false;
       return res.status(409).json({ success: false, message: "Chưa có dữ liệu thẻ hoặc tỷ lệ mở pack." });
     }
 
@@ -177,6 +188,7 @@ router.post("/:packId/open", async (req, res, next) => {
 
     if (!availableRates.length) {
       await connection.rollback();
+      transactionStarted = false;
       return res.status(409).json({ success: false, message: "Không có thẻ phù hợp với tỷ lệ pack hiện tại." });
     }
 
@@ -235,6 +247,7 @@ router.post("/:packId/open", async (req, res, next) => {
     );
 
     await connection.commit();
+    transactionStarted = false;
     res.json({
       success: true,
       message: "Mở pack thành công.",
@@ -243,7 +256,7 @@ router.post("/:packId/open", async (req, res, next) => {
       cards
     });
   } catch (error) {
-    if (connection) await connection.rollback();
+    if (connection && transactionStarted) await connection.rollback();
     next(error);
   } finally {
     connection?.release();
