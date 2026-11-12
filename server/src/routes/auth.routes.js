@@ -52,7 +52,7 @@ router.post("/register", async (req, res, next) => {
 
     const [userResult] = await connection.execute(
       `INSERT INTO users (username, email, password_hash, role, status)
-       VALUES (?, ?, ?, 'user', 'active')`,
+       VALUES (?, ?, ?, 'player', 'active')`,
       [username, email, passwordHash]
     );
 
